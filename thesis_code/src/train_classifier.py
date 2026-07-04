@@ -5,11 +5,11 @@ import os
 import sys
 from pathlib import Path
 
-import pandas as pd
 import torch
 from torch import nn
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
@@ -20,6 +20,7 @@ import yaml
 from src.datasets.classification_dataset import ClassificationDataset
 from src.models.densenet_classifier import DenseNetClassifier
 from src.preprocessing.prepare_dataset import PROPOSAL_CLASS_NAMES, load_manifest_class_names
+from src.utils.run_logging import append_log_line, create_epoch_log, create_run_directory, save_config_snapshot
 
 
 def train_classifier(config_path: str = "config.yaml") -> None:
@@ -44,8 +45,18 @@ def train_classifier(config_path: str = "config.yaml") -> None:
     num_classes = len(class_names)
     config["model"]["num_classes"] = num_classes
     checkpoints_dir = config["outputs"]["checkpoints_dir"]
+    outputs_cfg = config.get("outputs", {})
+    base_runs_dir = outputs_cfg.get("runs_dir", os.path.join("outputs", "runs"))
 
+    run_meta = create_run_directory(base_runs_dir, config_path, run_name="classifier")
+    run_dir = run_meta["run_dir"]
+    run_checkpoints_dir = os.path.join(run_dir, "checkpoints")
+    os.makedirs(run_checkpoints_dir, exist_ok=True)
     os.makedirs(checkpoints_dir, exist_ok=True)
+    save_config_snapshot(run_dir, config)
+    log_path = create_epoch_log(run_dir, "training_log.txt")
+    append_log_line(log_path, f"Run started at {run_meta['timestamp']}")
+    append_log_line(log_path, f"Config copy: {run_meta['config_copy']}")
 
     train_ds = ClassificationDataset(manifest_path, split="train", image_size=image_size, train=True, class_names=class_names)
     val_ds = ClassificationDataset(manifest_path, split="val", image_size=image_size, train=False, class_names=class_names)
@@ -70,7 +81,7 @@ def train_classifier(config_path: str = "config.yaml") -> None:
         correct = 0
         total = 0
 
-        for images, labels in train_loader:
+        for images, labels in tqdm(train_loader, desc=f"Epoch {epoch + 1}/{epochs} train", leave=False):
             images = images.to(device)
             labels = labels.to(device)
             optimizer.zero_grad()
@@ -91,7 +102,7 @@ def train_classifier(config_path: str = "config.yaml") -> None:
         val_correct = 0
         val_total = 0
         with torch.no_grad():
-            for images, labels in val_loader:
+            for images, labels in tqdm(val_loader, desc=f"Epoch {epoch + 1}/{epochs} val", leave=False):
                 images = images.to(device)
                 labels = labels.to(device)
                 outputs = model(images)
@@ -105,22 +116,30 @@ def train_classifier(config_path: str = "config.yaml") -> None:
         val_acc = val_correct / val_total
         scheduler.step(val_loss)
 
-        print(f"Epoch {epoch + 1}/{epochs} | train loss: {train_loss:.4f} | train acc: {train_acc:.4f} | val loss: {val_loss:.4f} | val acc: {val_acc:.4f}")
+        log_message = f"Epoch {epoch + 1}/{epochs} | train loss: {train_loss:.4f} | train acc: {train_acc:.4f} | val loss: {val_loss:.4f} | val acc: {val_acc:.4f}"
+        print(log_message)
+        append_log_line(log_path, log_message)
 
         if val_loss < best_val_loss - 1e-4:
             best_val_loss = val_loss
             best_state = {k: v.cpu().clone() for k, v in model.state_dict().items()}
+            torch.save(best_state, os.path.join(run_checkpoints_dir, "classifier_best.pt"))
             torch.save(best_state, os.path.join(checkpoints_dir, "classifier_best.pt"))
             epochs_without_improvement = 0
         else:
             epochs_without_improvement += 1
             if epochs_without_improvement >= patience:
                 print("Early stopping triggered")
+                append_log_line(log_path, "Early stopping triggered")
                 break
 
     if best_state is not None:
         model.load_state_dict(best_state)
+        torch.save(best_state, os.path.join(run_checkpoints_dir, "classifier_final.pt"))
         torch.save(best_state, os.path.join(checkpoints_dir, "classifier_final.pt"))
+
+    append_log_line(log_path, f"Training completed. Best validation loss: {best_val_loss:.4f}")
+    print(f"Run artifacts saved to {run_dir}")
 
 
 if __name__ == "__main__":

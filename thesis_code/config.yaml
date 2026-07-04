@@ -2,7 +2,7 @@ data:
   raw_dir: ../Dataset/Crop___Disease
   processed_dir: data/processed
   manifest_path: data/processed/manifest.csv
-  image_size: 224
+  image_size: 128
   train_val_test_split:
     train: 0.7
     val: 0.15
@@ -36,7 +36,7 @@ training:
     fine_tune_mode: freeze_head
 
   segmentation:
-    batch_size: 16
+    batch_size: 8
     num_epochs: 25
     learning_rate: 1e-4
     weight_decay: 1e-4
@@ -48,12 +48,13 @@ model:
     pretrained: true
     freeze_mode: freeze_head
   segmentation:
-    base_channels: 64
+    base_channels: 32
 
 outputs:
   checkpoints_dir: outputs/checkpoints
   figures_dir: outputs/figures
   reports_dir: outputs/reports
+  runs_dir: outputs/runs
 
 logging:
   verbose: true

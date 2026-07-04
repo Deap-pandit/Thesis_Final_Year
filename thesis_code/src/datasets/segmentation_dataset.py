@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import torch
 from PIL import Image
@@ -46,6 +47,9 @@ class SegmentationDataset(torch.utils.data.Dataset):
         image_path = Path(row["filepath"])
         image = Image.open(image_path).convert("RGB")
         mask = generate_weak_mask(image)
+        mask_image = Image.fromarray((mask * 255).astype(np.uint8))
+        mask_tensor = transforms.functional.to_tensor(
+            transforms.Resize((self.image_size, self.image_size))(mask_image)
+        ).float()
         image_tensor = self.transform(image)
-        mask_tensor = torch.from_numpy(mask).unsqueeze(0).float()
         return image_tensor, mask_tensor
