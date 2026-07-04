@@ -1,0 +1,13 @@
+* Deactivate the base env:
+	conda deactivate
+* Go to the env dir: 
+   cd /home/cse/Desktop/Deap
+   
+   
+* Activate the env:
+	source /home/cse/Desktop/Deap/myenv/bin/activate
+
+
+
+* Show ip address:
+	ip a show eno1 | grep "inet "

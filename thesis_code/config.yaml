@@ -1,0 +1,59 @@
+data:
+  raw_dir: ../Dataset/Crop___Disease
+  processed_dir: data/processed
+  manifest_path: data/processed/manifest.csv
+  image_size: 224
+  train_val_test_split:
+    train: 0.7
+    val: 0.15
+    test: 0.15
+  source_dirs:
+    - ../Dataset/Crop___Disease
+  use_otsu: true
+  fixed_threshold: null
+  random_seed: 42
+
+preprocessing:
+  exg:
+    morph_kernel_size: 5
+    morph_iterations: 1
+    min_leaf_area: 500
+  augmentation:
+    rotation_limit: 25
+    horizontal_flip: true
+    vertical_flip: true
+    brightness_limit: 0.2
+    contrast_limit: 0.2
+    shear_limit: 16
+
+training:
+  classifier:
+    batch_size: 32
+    num_epochs: 25
+    learning_rate: 1e-4
+    weight_decay: 1e-4
+    early_stopping_patience: 5
+    fine_tune_mode: freeze_head
+
+  segmentation:
+    batch_size: 16
+    num_epochs: 25
+    learning_rate: 1e-4
+    weight_decay: 1e-4
+    early_stopping_patience: 5
+
+model:
+  num_classes: 19
+  classifier:
+    pretrained: true
+    freeze_mode: freeze_head
+  segmentation:
+    base_channels: 64
+
+outputs:
+  checkpoints_dir: outputs/checkpoints
+  figures_dir: outputs/figures
+  reports_dir: outputs/reports
+
+logging:
+  verbose: true
